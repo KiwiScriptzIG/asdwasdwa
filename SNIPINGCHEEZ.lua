@@ -181,7 +181,7 @@ local function jumpToServer()
     local body = http:JSONDecode(req.Body) 
     local deep = math.random(1, 3)
     if deep > 1 then 
-        for i = 1, deep do 
+        for i = 1, deep, 1 do 
              req = request({ Url = string.format(sfUrl .. "&cursor=" .. body.nextPageCursor, 15502339080, "Desc", 100) }) 
              body = http:JSONDecode(req.Body) 
              task.wait(0.1)
@@ -189,9 +189,9 @@ local function jumpToServer()
     end 
     local servers = {} 
     if body and body.data then 
-        for i = 1, #body.data do 
-            if type(i) == "table" and tonumber(i.playing) and tonumber(i.maxPlayers) and i.playing < i.maxPlayers and i.id ~= game.JobId then
-                table.insert(servers, 1, i.id)
+        for i, v in next, body.data do 
+            if type(v) == "table" and tonumber(v.playing) and tonumber(v.maxPlayers) and v.playing < v.maxPlayers and v.id ~= game.JobId then
+                table.insert(servers, v.id)
             end
         end
     end
@@ -203,9 +203,6 @@ local function jumpToServer()
 end
 
 Players.PlayerAdded:Connect(function(player)
-    if player:IsInGroup(5060810) or player:IsInGroup(1200769) then
-        jumpToServer()
-    end
     for i = 1,#alts do
         if  player.Name == alts[i] and alts[i] ~= Players.LocalPlayer.Name then
             jumpToServer()
