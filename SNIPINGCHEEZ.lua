@@ -33,6 +33,7 @@ end
 local function processListingInfo(uid, gems, item, version, shiny, amount, boughtFrom, boughtStatus, mention)
     local gemamount = Players.LocalPlayer.leaderstats["💎 Diamonds"].Value
     local snipeMessage = Players.LocalPlayer.Name .. " just sniped a "
+    local weburl, webContent, webcolor
     if version then
         if version == 2 then
             version = "Rainbow"
@@ -50,22 +51,18 @@ local function processListingInfo(uid, gems, item, version, shiny, amount, bough
     end
     
     snipeMessage = snipeMessage .. " " .. (item)
-    
-    if amount == nil then
-        amount = 1
-    end
 
     if boughtStatus then
-	local webcolor = tonumber(0x33dd99)
-	local weburl = webhook
+	webcolor = tonumber(0x33dd99)
+	weburl = webhook
 	if mention then 
-            local webContent = "<@".. userid ..">"
+            webContent = "<@".. userid ..">"
         else
-	    local webContent = ""
+	    webContent = ""
 	end
     else
-	local webcolor = tonumber(0xff0000)
-	local weburl = webhookFail
+	webcolor = tonumber(0xff0000)
+	weburl = webhookFail
     end
     
     local message1 = {
@@ -102,19 +99,7 @@ local function processListingInfo(uid, gems, item, version, shiny, amount, bough
     }
 
     local jsonMessage = http:JSONEncode(message1)
-    local success, errorMessage = pcall(function()
-            http:PostAsync(weburl, jsonMessage)
-    end)
-    if success == false then
-            local response = request({
-            Url = weburl,
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
-            Body = jsonMessage
-        })
-    end
+    http:PostAsync(weburl, jsonMessage)
 end
 
 local function checklisting(uid, gems, item, version, shiny, amount, username, playerid)
@@ -127,22 +112,26 @@ local function checklisting(uid, gems, item, version, shiny, amount, username, p
         type = Library.Directory.Pets[item]
     end)
 
-    if type.exclusiveLevel and gems <= 25000 and item ~= "Banana" and item ~= "Coin" then
+    if amount == nil then
+        amount = 1
+    end
+
+    if type.exclusiveLevel and gems / amount <= 25000 and item ~= "Banana" and item ~= "Coin" then
         local boughtPet, boughtMessage = purchase:InvokeServer(playerid, uid)
         processListingInfo(uid, gems, item, version, shiny, amount, username, boughtPet, ping)
-    elseif item == "Titanic Christmas Present" and gems <= 25000 then
+    elseif item == "Titanic Christmas Present" and gems / amount <= 25000 then
         local boughtPet, boughtMessage = purchase:InvokeServer(playerid, uid)
-        processListingInfo(uid, gems, item, version, shiny, amount, username, boughtPet, ping)
-    elseif string.find(item, "Exclusive") and gems <= 25000 then
+	processListingInfo(uid, gems, item, version, shiny, amount, username, boughtPet, ping)
+    elseif string.find(item, "Exclusive") and gems / amount <= 25000 then
         local boughtPet, boughtMessage = purchase:InvokeServer(playerid, uid)
-        processListingInfo(uid, gems, item, version, shiny, amount, username, boughtPet, ping)
-    elseif type.huge and gems <= 1000000 then
+	processListingInfo(uid, gems, item, version, shiny, amount, username, boughtPet, ping)
+    elseif type.huge and gems / amount <= 1000000 then
         local boughtPet, boughtMessage = purchase:InvokeServer(playerid, uid)
         if boughtPet == true then
             ping = true
 	end
         processListingInfo(uid, gems, item, version, shiny, amount, username, boughtPet, ping)  
-    elseif type.titanic and gems <= 10000000 then
+    elseif type.titanic and gems / amount <= 10000000 then
         local boughtPet, boughtMessage = purchase:InvokeServer(playerid, uid)
         if boughtPet == true then
 	    ping = true
@@ -218,7 +207,7 @@ end)
 
 game:GetService("RunService").Stepped:Connect(function()
     PlayerInServer = #getPlayers
-    if PlayerInServer < 25 or math.floor(os.clock() - osclock) >= math.random(900, 1200) then
+    if PlayerInServer < 30 or math.floor(os.clock() - osclock) >= math.random(900, 1200) then
         jumpToServer()
     end
 end)
