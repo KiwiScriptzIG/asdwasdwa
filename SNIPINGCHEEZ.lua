@@ -1,27 +1,38 @@
-repeat wait() until game:IsLoaded()
+local osclock = os.clock()
+repeat task.wait() until game:IsLoaded()
+
+setfpscap(10)
 game:GetService("RunService"):Set3dRenderingEnabled(false)
 local Booths_Broadcast = game:GetService("ReplicatedStorage").Network:WaitForChild("Booths_Broadcast")
-local message1 = {}
 local Players = game:GetService('Players')
-local PlayerInServer = #Players:GetPlayers()
-local ostime = os.time()
-if not getgenv().a then
-    getgenv().a = true
-    local vu = game:GetService("VirtualUser")
-    game:GetService("Players").LocalPlayer.Idled:connect(function()
-        vu:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
-        wait(1)
-        vu:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
-    end)
-    
+local getPlayers = Players:GetPlayers()
+local PlayerInServer = #getPlayers
+local http = game:GetService("HttpService")
+local ts = game:GetService("TeleportService")
+local rs = game:GetService("ReplicatedStorage")
+local playerID
+
+local vu = game:GetService("VirtualUser")
+Players.LocalPlayer.Idled:connect(function()
+   vu:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+   task.wait(1)
+   vu:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+end)
+
+for i = 1, PlayerInServer do
+   if getPlayers[i] ~= Players.LocalPlayer and getPlayers[i].Character then
+      getPlayers[i].Character:ClearAllChildren()
+   end
+   for ii = 1,#alts do
+        if getPlayers[i].Name == alts[ii] and alts[ii] ~= Players.LocalPlayer.Name then
+            jumpToServer()
+        end
+    end
 end
-local function processListingInfo(uid, gems, item, version, shiny, amount, boughtFrom)
-    print(uid, gems, item, version, shiny, amount, boughtFrom)
-    print("BOUGHT FROM:", boughtFrom)
-    print("UID:", uid)
-    print("GEMS:", gems)
-    print("ITEM:", item)
-    local snipeMessage = game.Players.LocalPlayer.Name .. " just sniped a "
+
+local function processListingInfo(uid, gems, item, version, shiny, amount, boughtFrom, boughtStatus, mention)
+    local gemamount = Players.LocalPlayer.leaderstats["💎 Diamonds"].Value
+    local snipeMessage = Players.LocalPlayer.Name .. " just sniped a "
     if version then
         if version == 2 then
             version = "Rainbow"
@@ -40,21 +51,29 @@ local function processListingInfo(uid, gems, item, version, shiny, amount, bough
     
     snipeMessage = snipeMessage .. " " .. (item)
     
-    print(snipeMessage)
-    
-    if amount then
-        print("AMOUNT:", amount)
-    else
+    if amount == nil then
         amount = 1
-        print("AMOUNT:", amount)
+    end
+
+    if boughtStatus then
+	local webcolor = tonumber(0x33dd99)
+	local weburl = webhook
+	if mention then 
+            local webContent = "<@".. userid ..">"
+        else
+	    local webContent = ""
+	end
+    else
+	local webcolor = tonumber(0xff0000)
+	local weburl = webhookFail
     end
     
-    message1 = {
-        ['content'] = "Goofyahh Sniper",
+    local message1 = {
+        ['content'] = webContent,
         ['embeds'] = {
             {
                 ['title'] = snipeMessage,
-                ["color"] = tonumber(0x33dd99),
+                ["color"] = webcolor,
                 ["timestamp"] = DateTime.now():ToIsoDate(),
                 ['fields'] = {
                     {
@@ -70,6 +89,10 @@ local function processListingInfo(uid, gems, item, version, shiny, amount, bough
                         ['value'] = tostring(amount),
                     },
                     {
+                        ['name'] = "REMAINING GEMS:",
+                        ['value'] = tostring(gemamount),
+                    },      
+                    {
                         ['name'] = "PETID:",
                         ['value'] = tostring(uid),
                     },
@@ -77,98 +100,125 @@ local function processListingInfo(uid, gems, item, version, shiny, amount, bough
             },
         }
     }
-    local http = game:GetService("HttpService")
+
     local jsonMessage = http:JSONEncode(message1)
-    http:PostAsync(getgenv().webhook, jsonMessage)
+    local success, errorMessage = pcall(function()
+            http:PostAsync(weburl, jsonMessage)
+    end)
+    if success == false then
+            local response = request({
+            Url = weburl,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = jsonMessage
+        })
+    end
 end
+
 local function checklisting(uid, gems, item, version, shiny, amount, username, playerid)
-    local Library = require(game.ReplicatedStorage:WaitForChild('Library'))
+    local Library = require(rs:WaitForChild('Library'))
+    local purchase = rs.Network.Booths_RequestPurchase
     gems = tonumber(gems)
+    local ping = false
     local type = {}
     pcall(function()
         type = Library.Directory.Pets[item]
-end)
+    end)
+
     if type.exclusiveLevel and gems <= 25000 and item ~= "Banana" and item ~= "Coin" then
-        game:GetService("ReplicatedStorage").Network.Booths_RequestPurchase:InvokeServer(playerid, uid)
-        processListingInfo(uid, gems, item, version, shiny, amount, username)
-    elseif item == "Titanic Christmas Present" and gems <= 10000 then
-        game:GetService("ReplicatedStorage").Network.Booths_RequestPurchase:InvokeServer(playerid, uid)
-        processListingInfo(uid, gems, item, version, shiny, amount, username)
-    elseif string.find(item, "Exclusive") and gems <= 10000 then
-        game:GetService("ReplicatedStorage").Network.Booths_RequestPurchase:InvokeServer(playerid, uid)
-        processListingInfo(uid, gems, item, version, shiny, amount, username)
-    elseif string.find(item, "Charm") and gems <= 1000 then
-        game:GetService("ReplicatedStorage").Network.Booths_RequestPurchase:InvokeServer(playerid, uid)
-        processListingInfo(uid, gems, item, version, shiny, amount, username)
+        local boughtPet, boughtMessage = purchase:InvokeServer(playerid, uid)
+        processListingInfo(uid, gems, item, version, shiny, amount, username, boughtPet, ping)
+    elseif item == "Titanic Christmas Present" and gems <= 25000 then
+        local boughtPet, boughtMessage = purchase:InvokeServer(playerid, uid)
+        processListingInfo(uid, gems, item, version, shiny, amount, username, boughtPet, ping)
+    elseif string.find(item, "Exclusive") and gems <= 25000 then
+        local boughtPet, boughtMessage = purchase:InvokeServer(playerid, uid)
+        processListingInfo(uid, gems, item, version, shiny, amount, username, boughtPet, ping)
     elseif type.huge and gems <= 1000000 then
-        game:GetService("ReplicatedStorage").Network.Booths_RequestPurchase:InvokeServer(playerid, uid)
-        processListingInfo(uid, gems, item, version, shiny, amount, username)     
+        local boughtPet, boughtMessage = purchase:InvokeServer(playerid, uid)
+        if boughtPet == true then
+            ping = true
+	end
+        processListingInfo(uid, gems, item, version, shiny, amount, username, boughtPet, ping)  
     elseif type.titanic and gems <= 10000000 then
-        game:GetService("ReplicatedStorage").Network.Booths_RequestPurchase:InvokeServer(playerid, uid)
-        processListingInfo(uid, gems, item, version, shiny, amount, username)      
+        local boughtPet, boughtMessage = purchase:InvokeServer(playerid, uid)
+        if boughtPet == true then
+	    ping = true
+	end
+        processListingInfo(uid, gems, item, version, shiny, amount, username, boughtPet, ping)
     end
 end
+
 Booths_Broadcast.OnClientEvent:Connect(function(username, message)
-    local playerID = message['PlayerID']
-    if type(message) == "table" then
-        local listing = message["Listings"]
-        for key, value in pairs(listing) do
-            if type(value) == "table" then
-                local uid = key
-                local gems = value["DiamondCost"]
-                local itemdata = value["ItemData"]
-                if itemdata then
-                    local data = itemdata["data"]
-                    if data then
-                        local item = data["id"]
-                        local version = data["pt"]
-                        local shiny = data["sh"]
-                        local amount = data["_am"]
-                        checklisting(uid, gems, item, version, shiny, amount, username , playerID)
+    local playerIDSuccess, playerError = pcall(function()
+	playerID = message['PlayerID']
+    end)
+    if playerIDSuccess then
+        if type(message) == "table" then
+            local listing = message["Listings"]
+            for key, value in pairs(listing) do
+                if type(value) == "table" then
+                    local uid = key
+                    local gems = value["DiamondCost"]
+                    local itemdata = value["ItemData"]
+
+                    if itemdata then
+                        local data = itemdata["data"]
+
+                        if data then
+                            local item = data["id"]
+                            local version = data["pt"]
+                            local shiny = data["sh"]
+                            local amount = data["_am"]
+                            checklisting(uid, gems, item, version, shiny, amount, username , playerID)
+                        end
                     end
                 end
             end
-        end
+	end
     end
 end)
+
 local function jumpToServer() 
     local sfUrl = "https://games.roblox.com/v1/games/%s/servers/Public?sortOrder=%s&limit=%s&excludeFullGames=true" 
     local req = request({ Url = string.format(sfUrl, 15502339080, "Desc", 100) }) 
-    local body = game:GetService("HttpService"):JSONDecode(req.Body) 
+    local body = http:JSONDecode(req.Body) 
     local deep = math.random(1, 3)
     if deep > 1 then 
         for i = 1, deep, 1 do 
-            req = request({ Url = string.format(sfUrl .. "&cursor=" .. body.nextPageCursor, 15502339080, "Desc", 100) }) 
-            body = game:GetService("HttpService"):JSONDecode(req.Body) 
-            task.wait(0.1)
+             req = request({ Url = string.format(sfUrl .. "&cursor=" .. body.nextPageCursor, 15502339080, "Desc", 100) }) 
+             body = http:JSONDecode(req.Body) 
+             task.wait(0.1)
         end 
     end 
     local servers = {} 
     if body and body.data then 
         for i, v in next, body.data do 
             if type(v) == "table" and tonumber(v.playing) and tonumber(v.maxPlayers) and v.playing < v.maxPlayers and v.id ~= game.JobId then
-                table.insert(servers, 1, v.id)
+                table.insert(servers, v.id)
             end
         end
     end
     local randomCount = #servers
     if not randomCount then
-        randomCount = 2
+       randomCount = 2
     end
-    game:GetService("TeleportService"):TeleportToPlaceInstance(15502339080, servers[math.random(1, randomCount)], game:GetService("Players").LocalPlayer) 
+    ts:TeleportToPlaceInstance(15502339080, servers[math.random(1, randomCount)], game:GetService("Players").LocalPlayer) 
 end
 
-while wait(0.1) do
-    PlayerInServer = #Players:GetPlayers()
-    if PlayerInServer < 40 or os.time() >= ostime + 600 then
-    if PlayerInServer < 39 or os.time() >= ostime + 700 then
-        jumpToServer()
-        break
-    end
-    for count = 0, #alts - 1, 1 do
-        if game.Players:FindFirstChild(alts[count]) and alts[count] ~= game:GetService("Players").LocalPlayer then
+Players.PlayerAdded:Connect(function(player)
+    for i = 1,#alts do
+        if  player.Name == alts[i] and alts[i] ~= Players.LocalPlayer.Name then
             jumpToServer()
-            break
         end
     end
-end 
+end) 
+
+game:GetService("RunService").Stepped:Connect(function()
+    PlayerInServer = #getPlayers
+    if PlayerInServer < 25 or math.floor(os.clock() - osclock) >= math.random(900, 1200) then
+        jumpToServer()
+    end
+end)
